@@ -4,12 +4,17 @@ import com.study.board.entity.Board;
 import com.study.board.service.BoardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.persistence.GeneratedValue;
 
@@ -21,23 +26,48 @@ public class BoardController {
     @Autowired
     private BoardService boardService;
 
+    // 글쓰기
     @GetMapping("/board/write")
     public String boardWriteForm() {
 
         return "boardwrite";
     }
 
-    @PostMapping("/board/writepro")
-    public String boardWritePro(Board board) {
+    // 글쓰기 페이지
 
-        boardService.write(board);
-        return "";
+    @PostMapping("/board/writepro")
+    public String boardWritePro(Board board, Model model, MultipartFile file) throws Exception{
+
+        boardService.write(board, file);
+
+        model.addAttribute("message", "글작성이 완료 되었습니다");
+        model.addAttribute("searchUrl", "/board/list");
+        return "message";
     }
 
+    //리스트 페이지
     @GetMapping("/board/list")
-    public String boardList(Model model) {
+    public String boardList(Model model,
+                            @PageableDefault(page = 0, size = 10, sort = "id", direction = Sort.Direction.DESC)
+                            Pageable pageable, String searchKeyword) {
 
-        model.addAttribute("list",boardService.boardList());
+        Page<Board> list = null;
+
+        if(searchKeyword == null) {
+             list = boardService.boardList(pageable);
+        }else {
+             list = boardService.boardSearchList(searchKeyword, pageable);
+        }
+
+
+        int nowPage = list.getPageable().getPageNumber() + 1;
+        int startPage = Math.max(nowPage - 4,1);
+        int endPage = Math.min(nowPage + 5, list.getTotalPages());
+        model.addAttribute("list", list);
+        model.addAttribute("nowPage",nowPage);
+        model.addAttribute("startPage",startPage);
+        model.addAttribute("endPage",endPage);
+
         return "boardlist";
     }
 
@@ -49,13 +79,18 @@ public class BoardController {
 
 
     @GetMapping("/board/delete")
-    public String boardDelete(Integer id) {
+    public String boardDelete(Integer id, Model model) {
 
         boardService.boardDelete(id);
-        return "redirect:/board/list";
+
+        model.addAttribute("message", "글 삭제가 완료 되었습니다");
+        model.addAttribute("searchUrl", "/board/list");
+
+        return "message";
 
     }
 
+    //수정 파일, 상세페이지에 있는 내용을 넒길 때
     @GetMapping("/board/modify/{id}")
     public String boardModify(@PathVariable("id") Integer id, Model model) {
 
@@ -64,12 +99,19 @@ public class BoardController {
         return "boardmodify";
     }
 
+
     @PostMapping("/board/update/{id}")
-    public String boardUpdate(@PathVariable("id") Integer id, Board board) {
+    public String boardUpdate(@PathVariable("id") Integer id, Board board, Model model, MultipartFile file) throws Exception {
 
         Board boardTemp = boardService.boardView(id);
         boardTemp.setTitle(board.getTitle());
         boardTemp.setContent(board.getContent());
-        return "redirect:/board/list";
+        boardService.write(boardTemp, file);
+
+
+        model.addAttribute("message", "글 수정이 완료 되었습니다");
+        model.addAttribute("searchUrl", "/board/list");
+
+        return "message";
     }
 }
